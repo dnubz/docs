@@ -42,6 +42,11 @@
         .form-group label, .form-group input { display: block; }
         .log-ts { color: #555; }
         .log-layer, .log-warn { font-weight: 600; }
+        .architecture-flow { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: .75rem; align-items: stretch; margin: 1.25rem 0; }
+        .architecture-box { border: 1px solid #bbb; background: #fafafa; padding: .75rem; min-height: 8.5rem; }
+        .architecture-box strong { display: block; margin-bottom: .25rem; }
+        .architecture-arrow { align-self: center; text-align: center; font-weight: 700; }
+        @media (max-width: 760px) { .architecture-flow { grid-template-columns: 1fr; } .architecture-arrow { transform: rotate(90deg); } }
     </style>
 </head>
 <body>
@@ -51,6 +56,7 @@
         <p>Dokumentasi server dan panduan Rust</p>
         <nav aria-label="Daftar isi">
             <ul>
+                <li><a href="#overview-tab">Ringkasan Use Case dan alur pemanggilan</a></li>
                 <li><a href="#quiz-tab">Bugs, optimasi, dan fitur</a></li>
                 <li><a href="#rust-tab">Konsep Rust</a></li>
                 <li><a href="#folder-tab">Struktur folder</a></li>
@@ -62,367 +68,164 @@
 
     <main>
 
-        <!-- TAB 0: QUIZ BUGS, OPTIMIZATION & FEATURES -->
-        <section id="quiz-tab">
-
+        <!-- RINGKASAN UML / ARSITEKTUR -->
+        <section id="overview-tab">
             <header>
-                <h2>Bedah Soal TPA: 7 Bugs, 2 Optimasi & 2 Fitur Baru</h2>
-                <p>
-                    Disusun langsung dari <code>TPA Desktop 26-2 - Rhodev Island Logistic (Code).pdf</code> dan rubrik penilaian <code>Template Onsite.xlsx</code> (total bobot <strong>Application = 55%</strong> dari nilai akhir).
-                    Seluruh kode di <code>./app</code> tidak diubah — semua analisis & solusi lengkap ada di panduan ini agar mudah dipelajari.
-                </p>
-                <nav aria-label="Bagian TPA">
-                    <ul>
-                    <li><a href="#quiz-rubric">Rubrik Nilai</a></li>
-                    <li><a href="#quiz-bugs">7 Bugs (5 Server + 2 Tauri)</a></li>
-                    <li><a href="#quiz-opt">2 Optimasi Query</a></li>
-                    <li><a href="#quiz-feat">2 Fitur Baru</a></li>
-                    <li><a href="#quiz-scorer">Simulator Ranking Kurir</a></li>
-                </ul>
-                </nav>
+                <h2>Ringkasan Use Case, Controller, Port, Entity, dan Activity</h2>
+                <p>Ringkasan ini menjelaskan komponen apa yang digambar, arah dependency, serta urutan pemanggilan fungsi pada use case <code>dispatch_operator()</code>.</p>
             </header>
 
-            <h2 class="section-title" id="quiz-rubric">Peta Bobot Penilaian (Template Onsite.xlsx)</h2>
+            <h3 class="section-title">1. Use Case → Controller / Port Inbound → Port Outbound</h3>
+            <div class="architecture-flow">
+                <div class="architecture-box"><strong>Use Case</strong><code>Dispatch Operator</code><br>Operator memilih kurir dan order item yang READY_FOR_PICKUP.</div>
+                <div class="architecture-arrow">→</div>
+                <div class="architecture-box"><strong>Inbound Controller</strong><code>desktop/src-tauri/src/controller/dispatcher_controller.rs</code><br>Menerima ID, memvalidasi input, lalu memanggil API Client.</div>
+                <div class="architecture-arrow">→</div>
+                <div class="architecture-box"><strong>Port Inbound / ServiceTrait</strong><code>server/src/port/inbound/service_trait.rs</code><br>Kontrak use case service.</div>
+                <div class="architecture-arrow">→</div>
+                <div class="architecture-box"><strong>Port Outbound / RepositoryTrait</strong><code>server/src/port/outbound/repository_trait.rs</code><br>Kontrak data access yang dibutuhkan use case.</div>
+                <div class="architecture-arrow">→</div>
+                <div class="architecture-box"><strong>Data Access / Database</strong><code>repository.rs</code> + MySQL<br>Menjalankan query, eager loading, dan transaksi.</div>
+            </div>
+
+            <h3 class="section-title">2. Komponen yang Harus Dibuat sebagai Kotak Diagram</h3>
             <div class="table-wrap" tabindex="0"><table>
-                <thead>
-                    <tr>
-                        <th>Kategori</th>
-                        <th>Item Penilaian di Excel</th>
-                        <th>Lokasi</th>
-                        <th>Weight</th>
-                        <th>Max Score</th>
-                    </tr>
-                </thead>
+                <thead><tr><th>Jenis kotak</th><th>Contoh nama</th><th>Tanggung jawab</th></tr></thead>
                 <tbody>
-                    <tr><td><span class="tag tag-red">BUG #1</span></td><td><strong>Import bug</strong> (entity exports & missing imports)</td><td><code>server/src/</code></td><td>3</td><td>4.85</td></tr>
-                    <tr><td><span class="tag tag-red">BUG #2</span></td><td><strong>Trait bug</strong> (<code>dispatch_operator</code> hilang di <code>ServiceTrait</code>)</td><td><code>server/src/port/inbound/</code></td><td>2</td><td>3.24</td></tr>
-                    <tr><td><span class="tag tag-red">BUG #3</span></td><td><strong>Async/Await bug</strong> (lupa <code>.await</code> di handler Axum)</td><td><code>server/src/adapter/inbound/</code></td><td>2</td><td>3.24</td></tr>
-                    <tr><td><span class="tag tag-red">BUG #4</span></td><td><strong>Ownership Borrowing bug</strong> (<code>Vec</code> lupa <code>mut</code> saat <code>.push()</code>)</td><td><code>server/src/core/service/</code></td><td>2</td><td>3.24</td></tr>
-                    <tr><td><span class="tag tag-red">BUG #5</span></td><td><strong>ActiveModel bug</strong> (<code>availability</code> tidak di-set ke <code>0</code> saat dispatch)</td><td><code>server/src/core/service/</code></td><td><strong>4</strong></td><td><strong>6.47</strong></td></tr>
-                    <tr><td><span class="tag tag-orange">BUG #6</span></td><td><strong>React bug</strong> (<code>Operator.id</code> bertipe <code>string</code>, seharusnya <code>number</code>)</td><td><code>desktop/src/model/</code></td><td>2</td><td>3.24</td></tr>
-                    <tr><td><span class="tag tag-orange">BUG #7</span></td><td><strong>Rust Tauri bug</strong> (validasi input ID hilang di controller Tauri)</td><td><code>desktop/src-tauri/src/controller/</code></td><td>2</td><td>3.24</td></tr>
-                    <tr><td><span class="tag tag-cyan">OPTIMASI</span></td><td><strong>Server Query / Logic optimization</strong> (<code>get_order_item</code> + N+1 Warehouse)</td><td><code>server/src/</code></td><td><strong>5</strong></td><td><strong>8.09</strong></td></tr>
-                    <tr><td><span class="tag tag-green">FITUR #1</span></td><td><strong>Log feature</strong> (Activity Logging aksi operator tampil di Dashboard)</td><td><code>server/</code> + <code>dashboard/</code></td><td><strong>9</strong></td><td><strong>14.56</strong></td></tr>
-                    <tr><td><span class="tag tag-purple">FITUR #2</span></td><td><strong>Sort feature</strong> (Courier Recommendation Weighted Scoring)</td><td><code>server/</code> + <code>desktop/</code></td><td>3</td><td>4.85</td></tr>
+                    <tr><td><strong>Use Case</strong></td><td><code>DispatchOperatorUseCase</code></td><td>Aturan alur: cek kurir tersedia, cek role Courier, cek order READY_FOR_PICKUP, lalu dispatch.</td></tr>
+                    <tr><td><strong>Controller — Desktop</strong></td><td><code>DispatcherController</code></td><td>Batas adapter inbound Tauri: validasi ID, mengubah request menjadi HTTP call, dan mengembalikan hasil ke frontend.</td></tr>
+                    <tr><td><strong>View — Frontend</strong></td><td><code>DispatcherPage</code>, <code>CourierPage</code>, <code>Header</code></td><td>Menampilkan operator/order, menangani klik, dan memanggil Tauri command melalui React.</td></tr>
+                    <tr><td><strong>Inbound Port</strong></td><td><code>ServiceTrait</code></td><td>Kontrak use case: menyimpan signature <code>dispatch_operator()</code> dan fungsi view/data yang lain.</td></tr>
+                    <tr><td><strong>Outbound Port</strong></td><td><code>RepositoryTrait</code></td><td>Kontrak data access: <code>find_operator</code>, <code>get_order_item</code>, <code>dispatch_operator</code>, insert log, dan method repository lain.</td></tr>
+                    <tr><td><strong>Entity</strong></td><td><code>Operator</code>, <code>OrderItem</code>, <code>ActivityLog</code></td><td>Peta data/record database; entity tidak wajib memiliki method bisnis.</td></tr>
+                    <tr><td><strong>DTO</strong></td><td><code>DispatchOperatorRequest</code>, <code>OperatorDetailsResponse</code></td><td>Format data lintas layer dan JSON; tidak boleh tercampur dengan entity database.</td></tr>
+                    <tr><td><strong>Adapter Outbound</strong></td><td><code>Repository</code></td><td>Implementasi Sea-ORM: mengubah method trait menjadi query, eager loading, update, dan transaksi.</td></tr>
+                    <tr><td><strong>Database</strong></td><td>MySQL tables</td><td>Menyimpan semua record dan menjadi implementasi konkret paling luar.</td></tr>
                 </tbody>
             </table></div>
 
-            <h2 class="section-title" id="quiz-bugs">Bagian 1: Bedah 7 Bugs (5 Server + 2 Tauri Desktop)</h2>
-            <div class="concept-card">
-                <h3>Bug #1 — Import Bug (Missing Module Exports &amp; Imports)</h3>
-                <p><strong>Lokasi:</strong> <code>server/src/core/domain/entity/mod.rs</code>, <code>server/src/port/inbound/service_trait.rs</code>, dan <code>server/src/core/service/service.rs</code>.<br><strong>Penyebab:</strong> Di file soal asli (<code>app.zip</code>), 9 file entity belum di-export dengan <code>pub mod</code> di <code>entity/mod.rs</code>, dan semua pernyataan <code>use crate::...</code> untuk DTO, Entity, serta Trait dihapus dari <code>service_trait.rs</code> dan <code>service.rs</code>. Akibatnya muncul error <code>cannot find type ... in this scope</code>.</p>
-                <div class="analogi-box"><strong>Perbaikan:</strong> Export semua entity, misalnya <code>pub mod manufacturer;</code>, <code>pub mod medicine_type;</code>, <code>pub mod operator;</code>, <code>pub mod order;</code>, <code>pub mod order_item;</code>, <code>pub mod order_status;</code>, <code>pub mod race;</code>, <code>pub mod role;</code>, dan <code>pub mod warehouse_inventory;</code>. Tambahkan kembali import DTO, Entity, dan Trait yang dibutuhkan.</div>
-            </div>
-            <div class="concept-card">
-                <h3>Bug #2 — Trait Bug (Method <code>dispatch_operator</code> Hilang di Trait)</h3>
-                <p><strong>Lokasi:</strong> <code>server/src/port/inbound/service_trait.rs</code>. Handler dan implementasi memanggil method ini, tetapi kontrak <code>ServiceTrait</code> lupa mendeklarasikannya.</p>
-                <pre><code>fn dispatch_operator(&amp;self, operator_id: i32, order_item_id: i32)
-    -&gt; impl Future&lt;Output = Result&lt;(), StatusCode&gt;&gt; + Send;</code></pre>
-            </div>
-            <div class="concept-card">
-                <h3>Bug #3 — Async/Await Bug (Lupa <code>.await</code> di Axum Handler)</h3>
-                <p>Fungsi async menghasilkan <code>Future</code>, bukan langsung <code>Result</code>. Tambahkan <code>.await</code> sebelum melakukan match.</p>
-                <pre><code>let order_items = service.view_order_item().await;
-let operators = service.view_operator_list().await;</code></pre>
-            </div>
-            <div class="concept-card">
-                <h3>Bug #4 — Ownership / Borrowing Bug (Vector Tidak <code>mut</code>)</h3>
-                <p>Variabel Rust immutable secara default. Tambahkan <code>mut</code> pada vector yang menggunakan <code>push()</code>, termasuk di <code>view_operator_list</code>, <code>view_order_item</code>, dan <code>view_task_list</code>.</p>
-                <pre><code>let mut operator_data = Vec::new();
-operator_data.push(operator_details);</code></pre>
-            </div>
-            <div class="concept-card">
-                <h3>Bug #5 — ActiveModel Bug (<code>availability</code> Tidak Di-Update saat Dispatch!)</h3>
-                <p>Tanpa mengubah availability saat dispatch, kurir tetap tampil tersedia dan dapat dipilih berkali-kali.</p>
-                <pre><code>let operator_active = OperatorActiveModel {
-    id: ActiveValue::Unchanged(operator_id),
-    availability: ActiveValue::Set(0), // 0 = On Duty
-    ..Default::default()
-};</code></pre>
-            </div>
-            <div class="concept-card">
-                <h3>Bug #6 — React / TypeScript Bug (Tipe <code>Operator.id</code> Salah!)</h3>
-                <p>Backend mengirim <code>i32</code> sebagai JSON number; samakan model frontend dengan <code>id: number</code>, bukan <code>string</code>.</p>
-                <pre><code>export type Operator = {
-    id: number;
-    fullname: string;
-    codename: string;
-};</code></pre>
-            </div>
-            <div class="concept-card">
-                <h3>Bug #7 — Rust Tauri Bug (Missing Input Validation di Controller)</h3>
-                <p>Tambahkan validasi ID sebelum HTTP request di <code>dispatch_operator</code> dan <code>pickup_medicine</code>.</p>
-                <pre><code>if operator_id &lt;= 0 || order_item_id &lt;= 0 {
-    return Err("Invalid operator or order item".to_string());
-}</code></pre>
-            </div>
+            <h3 class="section-title">3. Entity Tidak Memiliki Method</h3>
+            <div class="analogi-box"><strong>Aturan gambar/arsitektur:</strong> <code>Operator</code>, <code>OrderItem</code>, <code>ActivityLog</code>, dan entity Sea-ORM lain adalah <strong>data</strong>. Method tidak diletakkan di entity; method bisnis ada di <strong>Service / use case</strong>, sedangkan method database ada di <strong>Repository / data access adapter</strong>. Entity hanya berisi field, relasi, dan hasil mapping tabel.</div>
 
-            <h2 class="section-title" id="quiz-opt">Bagian 2: 2 Code Optimizations (Weight 5 — 8.09 PTS)</h2>
-            <div class="concept-card">
-                <h3>Optimasi #1 — <code>get_order_item</code> Full-Table Scan → Direct SQL Filter</h3>
-                <p>Hindari memuat seluruh order item ke RAM hanya untuk mencari satu ID. Filter langsung pada database dan eager-load relasi yang dibutuhkan.</p>
-                <pre><code>let order_item = OrderItem::load()
-    .filter(order_item::Column::Id.eq(order_item_id))
-    .with((Medicine, Manufacturer))
-    .with((Order, Warehouse))
-    .with(OrderStatus)
-    .with(Operator)
-    .one(&amp;self.database_connection)
-    .await;</code></pre>
-            </div>
-            <div class="concept-card">
-                <h3>Optimasi #2 — Fix N+1 Query Problem di <code>view_warehouse_list</code></h3>
-                <p>Panggil <code>load_all_warehouse_inventory()</code> sekali di luar loop, lalu kelompokkan hasilnya menggunakan <code>HashMap&lt;i32, Vec&lt;WarehouseInventoryItem&gt;&gt;</code>.</p>
-                <pre><code>let warehouses = self.repository.load_warehouses().await?;
-let all_inv = self.repository.load_all_warehouse_inventory().await?;
-let mut inv_map: HashMap&lt;i32, Vec&lt;WarehouseInventoryItem&gt;&gt; = HashMap::new();
-for item in all_inv {
-    inv_map.entry(item.warehouse_id).or_default().push(item);
+            <h3 class="section-title">4. DTO dan Entity pada Batas Port/Adapter</h3>
+            <pre><code>// Frontend/view menerima DTO, bukan entity database mentah
+DispatchOperatorRequest {
+    operator_id: i32,
+    order_item_id: i32,
 }
-for warehouse in warehouses {
-    let items = inv_map.remove(&amp;warehouse.id).unwrap_or_default();
-}</code></pre>
-            </div>
 
-            <h2 class="section-title" id="quiz-feat">Bagian 3: Implementasi 2 Fitur Baru (Weight 12 — 19.41 PTS)</h2>
-            <div class="concept-card">
-                <h3>Fitur #1 — Activity Logging (Catat Aksi Operator → Tampil di Dashboard)</h3>
-                <p>Tabel <code>activity_log</code>, entity Sea-ORM, endpoint GET, dan panel dashboard sudah tersedia. Tambahkan method <code>insert_activity_log</code> di repository, lalu panggil setelah aksi <code>dispatch_operator</code>, <code>pickup_medicine</code>, dan <code>complete_task</code> berhasil.</p>
-                <pre><code>let log = ActivityLogActiveModel {
-    description: ActiveValue::Set(description),
-    timestamp: ActiveValue::Set(chrono::Utc::now()),
-    ..Default::default()
-};
-let _ = self.repository.insert_activity_log(log).await;</code></pre>
-            </div>
-            <div class="concept-card">
-                <h3>Fitur #2 — Courier Recommendation (Weighted Scoring &amp; Sorting)</h3>
-                <p>Rank kurir AVAILABLE menggunakan jarak ke manufacturer (65%) dan kecocokan regional (35%). Sertakan region pada Location DTO/model dan eager-load relasi Region.</p>
-                <pre><code>const MAX_DIST = Math.hypot(1000, 800);
-const W_DIST = 0.65;
-const W_SPEC = 0.35;
-function scoreCourier(c, item) {
-    const dist = distance(c.x_position, c.y_position,
-        item.pickup.x_position, item.pickup.y_position);
-    const distScore = Math.max(0, 1 - dist / MAX_DIST);
-    const specMatch = c.region_specialty === item.destination.region ||
-        c.region_specialty === item.pickup.region;
-    return (W_DIST * distScore + W_SPEC * Number(specMatch)) * 100;
-}</code></pre>
-            </div>
+// Core mendefinisikan kontrak DTO response
+OperatorDetailsResponse {
+    id: i32,
+    fullname: String,
+    codename: String,
+    availability: i32,
+}
 
-            <h2 class="section-title" id="quiz-scorer">Simulasi Ranking Kurir</h2>
-            <p>Contoh interaktif untuk melihat ranking kurir berdasarkan jarak dan regional specialty.</p>
-            <div class="sim-controls">
-                <div class="form-group"><label for="recOrder">Target Order (Manufacturer)</label><select id="recOrder" onchange="updateRecommendation()"><option value="Columbia|250|300">Rhine Lab (Columbia: X=250, Y=300)</option><option value="Victoria|620|520">Raythean (Victoria: X=620, Y=520)</option><option value="Yan|820|280">Lungmen Pharma (Yan: X=820, Y=280)</option></select></div>
-                <div class="form-group"><label for="wDistSlider">Bobot Jarak: <span id="wDistLabel">65%</span> | Specialty: <span id="wSpecLabel">35%</span></label><input type="range" id="wDistSlider" min="10" max="90" step="5" value="65" oninput="updateRecommendation()"></div>
-            </div>
-            <div class="table-wrap" tabindex="0"><table><thead><tr><th>Rank</th><th>Courier</th><th>Status</th><th>Jarak ke Manufacturer</th><th>Region Specialty</th><th>Weighted Score</th></tr></thead><tbody id="recTableBody"></tbody></table></div>
+// Entity Sea-ORM hanya merepresentasikan tabel
+OperatorEntity::Model {
+    id,
+    fullname,
+    codename,
+    availability,
+    // field tabel lain
+}
+
+// Alur konversi:
+React Page -> Tauri Controller -> ApiClient -> Axum Adapter
+    -> DispatchOperatorRequest DTO
+    -> ServiceTrait -> Service Use Case
+    -> RepositoryTrait -> Repository / Entity -> MySQL
+    -> Entity/Model -> mapping ke Response DTO -> React Page</code></pre>
+
+            <h3 class="section-title">5. Activity Diagram: Dispatch Operator</h3>
+            <pre><code>[Mulai]
+   |
+   v
+[View memilih kurir + order item]
+   |
+   v
+[DispatcherController memvalidasi operator_id &amp; order_item_id]
+   |
+   +-- tidak valid --&gt; [Tampilkan error] --&gt; [Selesai]
+   |
+   v
+[Tauri ApiClient POST /dispatcher/dispatch-operator]
+   |
+   v
+[Axum menerima JSON DispatchOperatorRequest]
+   |
+   v
+[ServiceTrait.dispatch_operator()]
+   |
+   v
+[Service mencari Operator melalui Repository]
+   |
+   v
+[Service mencari OrderItem melalui Repository]
+   |
+   +-- kurir tidak tersedia / bukan courier --&gt; [HTTP 400] --&gt; [Selesai]
+   |
+   +-- order bukan READY_FOR_PICKUP -----------&gt; [HTTP 400] --&gt; [Selesai]
+   |
+   v
+[Service membuat OperatorActiveModel dan OrderItemActiveModel]
+   |
+   v
+[Repository membuka MySQL transaction]
+   |
+   v
+[Update Operator availability = 0]
+   |
+   v
+[Update OrderItem status = 4 dan courier_id]
+   |
+   v
+[Commit transaction]
+   |
+   v
+[Insert ActivityLog sukses]
+   |
+   v
+[HTTP 200 ke Tauri] --&gt; [Poller refresh React] --&gt; [Selesai]</code></pre>
+
+            <h3 class="section-title">6. Sequence Pemanggilan <code>dispatch_operator()</code></h3>
+            <pre><code>DispatcherPage
+  -&gt; Tauri Controller: dispatch_operator(operator_id, order_item_id)
+
+DispatcherController
+  -&gt; validasi operator_id &amp; order_item_id
+  -&gt; ApiClient.dispatch_operator(operator_id, order_item_id)
+
+ApiClient
+  -&gt; HTTP POST /dispatcher/dispatch-operator
+  -&gt; body: DispatchOperatorRequest
+
+Axum Inbound Adapter
+  -&gt; Json(payload): DispatchOperatorRequest
+  -&gt; service.dispatch_operator(payload.operator_id, payload.order_item_id).await
+
+Service (Use Case)
+  -&gt; repository.find_operator(operator_id).await
+  -&gt; repository.get_order_item(order_item_id).await
+  -&gt; validasi availability, role, dan status
+  -&gt; buat OperatorActiveModel / OrderItemActiveModel
+  -&gt; repository.dispatch_operator(operator_active, order_item_active).await
+
+Repository (Outbound Adapter)
+  -&gt; database_connection.begin().await
+  -&gt; operator.update(&amp;tx).await
+  -&gt; order_item.update(&amp;tx).await
+  -&gt; tx.commit().await
+  -&gt; insert_activity_log(log).await // jika fitur logging diaktifkan
+
+Database
+  -&gt; update operator / order_item / activity_log
+
+Return
+  -&gt; RepositoryTrait -> ServiceTrait -> Axum -> ApiClient -> Tauri
+  -&gt; DispatcherPage menerima sukses atau HTTP status error</code></pre>
         </section>
 
-        <section id="rust-tab">
-            <header><h2>Panduan Konsep Rust untuk Pemula (Berdasarkan Kode App)</h2><p>Rust terkenal dengan sistem keamanannya yang ketat tanpa menggunakan <em>Garbage Collector</em>. Berikut konsep kunci Rust yang digunakan di project ini.</p></header>
-            <div class="concept-card"><h3>1. Ownership &amp; Borrowing</h3><p>Ownership menentukan pemilik nilai. Borrowing memungkinkan fungsi meminjam referensi tanpa mengambil alih kepemilikan. Nilai otomatis di-drop saat keluar dari scope.</p><pre><code>fn main() {
-    let nama = String::from("Amiya");
-    cetak_nama(&amp;nama);
-    println!("Halo lagi {}", nama);
-}
-fn cetak_nama(n: &amp;String) { println!("Nama: {}", n); }</code></pre><p>Di aplikasi, <code>&amp;self</code> pada method service meminjam instance Service, bukan mengambil kepemilikannya.</p></div>
-            <div class="concept-card"><h3>2. Error Handling: <code>Result&lt;T, E&gt;</code>, <code>Option&lt;T&gt;</code> &amp; Operator <code>?</code></h3><p><code>Option</code> merepresentasikan nilai yang mungkin kosong; <code>Result</code> merepresentasikan operasi yang bisa berhasil atau gagal. Operator <code>?</code> meneruskan error ke pemanggil.</p><pre><code>fn bagi(a: f32, b: f32) -&gt; Result&lt;f32, String&gt; {
-    if b == 0.0 { Err(String::from("Tidak boleh membagi nol!")) }
-    else { Ok(a / b) }
-}
-fn kalkulasi() -&gt; Result&lt;f32, String&gt; {
-    let hasil = bagi(10.0, 2.0)?;
-    Ok(hasil * 5.0)
-}</code></pre></div>
-            <div class="concept-card"><h3>3. Smart Pointer: <code>Arc&lt;T&gt;</code></h3><p><code>Arc</code> memungkinkan beberapa thread berbagi kepemilikan data dengan reference count atomik. Clone pointer tidak menggandakan data.</p><pre><code>let service = Arc::new(new_service(repository));
-let generator = tokio::spawn(run_event_generator(Arc::clone(&amp;service)));
-let movement = tokio::spawn(run_courier_movement(Arc::clone(&amp;service)));
-let server = new_server(service);</code></pre></div>
-            <div class="concept-card"><h3>4. Traits &amp; Generics</h3><p>Trait mendefinisikan kontrak perilaku. Generic dengan trait bound dapat menerima tipe apa saja yang memenuhi kontrak.</p><pre><code>trait PengantarBarang { fn antar(&amp;self, paket: &amp;str); }
-struct KurirMotor;
-impl PengantarBarang for KurirMotor {
-    fn antar(&amp;self, paket: &amp;str) { println!("Antar paket {} pakai motor!", paket); }
-}
-fn kirim&lt;T: PengantarBarang&gt;(kurir: T, nama: &amp;str) { kurir.antar(nama); }</code></pre></div>
-            <div class="concept-card"><h3>5. Macros &amp; Attributes</h3><p>Attribute seperti <code>#[tauri::command]</code> dan <code>#[derive(...)]</code> memberi instruksi compiler untuk menghasilkan boilerplate.</p><pre><code>#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
-struct Obat { id: i32, nama: String, jumlah: i32 }
-
-#[tauri::command(rename_all = "snake_case")]
-async fn dispatch_operator(operator_id: i32, order_item_id: i32) { /* ... */ }</code></pre></div>
-            <div class="concept-card"><h3>6. Struct Update Syntax &amp; Default</h3><p><code>..Default::default()</code> mengisi field yang tidak disebutkan dengan nilai default.</p><pre><code>let order_item_active = OrderItemActiveModel {
-    id: ActiveValue::Unchanged(order_item_id),
-    status: ActiveValue::Set(4),
-    courier_id: ActiveValue::Set(Some(operator_id)),
-    ..Default::default()
-};</code></pre></div>
-        </section>
-
-        <section id="folder-tab">
-            <header><h2>Bedah Struktur Folder Server (Hexagonal Architecture)</h2><p>Struktur <code>server/src</code> menerapkan pola Ports and Adapters untuk mengisolasi aturan bisnis dari framework web dan database.</p></header>
-            <h2 class="section-title">Peta Alur Data Hexagonal</h2>
-            <ol><li>Tauri mengirim HTTP request dengan payload JSON.</li><li>Inbound adapter (<code>server.rs</code>) membaca payload dan memanggil inbound port.</li><li>Inbound port (<code>service_trait.rs</code>) mendefinisikan operasi service.</li><li>Core mendefinisikan entity dan DTO, lalu menerapkan aturan bisnis.</li><li>Outbound port (<code>repository_trait.rs</code>) mendefinisikan operasi penyimpanan.</li><li>Outbound adapter (<code>repository.rs</code>) menjalankan query, eager loading, dan transaksi Sea-ORM.</li><li>MySQL menyimpan data. Konfigurasi ada di <code>db.rs</code> dan skema awal di <code>create+insert.sql</code>.</li></ol>
-            <div class="analogi-box"><strong>Analogi Colokan &amp; Kepala Charger:</strong><ul><li><strong>Port:</strong> kontrak interface yang menetapkan bentuk interaksi.</li><li><strong>Adapter:</strong> menyesuaikan teknologi luar, misalnya Axum HTTP/JSON atau Sea-ORM/SQL.</li><li><strong>Core:</strong> logika inti yang tidak bergantung pada teknologi luar.</li></ul></div>
-            <h2 class="section-title">Penjabaran Tiap Folder &amp; File</h2>
-            <div class="concept-card"><h3>1. Folder <code>core/</code></h3><p>Otak sistem; tidak boleh bergantung pada Axum atau HTTP.</p><ul><li><code>core/domain/entity/</code>: struct tabel database Sea-ORM.</li><li><code>core/domain/dto/</code>: format request dan response JSON.</li><li><code>core/service/service.rs</code>: aturan bisnis dispatch.</li></ul></div>
-            <div class="concept-card"><h3>2. Folder <code>port/</code></h3><p>Trait menjadi kontrak antara Core dengan dunia luar.</p><ul><li><code>port/inbound/service_trait.rs</code>: operasi yang dapat dipanggil adapter.</li><li><code>port/outbound/repository_trait.rs</code>: operasi database yang dibutuhkan service.</li></ul></div>
-            <div class="concept-card"><h3>3. Folder <code>adapter/</code></h3><p>Implementasi teknis menggunakan Axum dan Sea-ORM.</p><ul><li><code>adapter/inbound/server.rs</code>: menerima HTTP, routing, dan memanggil service.</li><li><code>adapter/outbound/repository.rs</code>: query SQL dan transaksi.</li></ul></div>
-            <div class="concept-card"><h3>4. Folder <code>database/</code> &amp; File Root <code>src/</code></h3><ul><li><code>db.rs</code>: koneksi pool MySQL.</li><li><code>create+insert.sql</code>: skema dan data seed.</li><li><code>terra-map-layout.json</code>: koordinat peta Terra.</li><li><code>main.rs</code>: composition root.</li><li><code>event_generator.rs</code>: task background Tokio.</li></ul></div>
-            <div class="card"><h3>Mengapa Ada File <code>adapter.rs</code> di Sebelah Folder <code>adapter/</code>?</h3><p>Rust memerlukan deklarasi modul untuk mengekspor isi folder:</p><pre><code>pub mod inbound;
-pub mod outbound;</code></pre></div>
-            <div class="card"><h3>Mudah Diuji dan Fleksibel</h3><p>Service yang bergantung pada <code>RepositoryTrait</code> dapat diuji dengan mock tanpa database nyata. Implementasi database dapat diganti tanpa mengubah logika bisnis.</p></div>
-        </section>
-
-        <section id="arch-tab">
-            <header><h2>Arsitektur Server &amp; Penanganan Endpoint</h2><p>Backend di <code>./app/app/server</code> mengadopsi Hexagonal Architecture: Axum sebagai inbound transport, core domain logic, dan Sea-ORM sebagai outbound persistence.</p></header>
-            <h2 class="section-title">Alur Request dari Tauri ke Database</h2>
-            <details><summary>1. Tauri IPC &amp; HTTP Client</summary><p><code>desktop/src-tauri/src/model/api_client.rs</code> menggunakan Reqwest untuk POST ke server lokal.</p><ul><li>Payload: operator_id dan order_item_id.</li><li>Target: <code>http://127.0.0.1:3000/dispatcher/dispatch-operator</code>.</li><li>Async call via Tokio.</li></ul><pre><code>let response = self.client
-    .post(format!("{}/dispatcher/dispatch-operator", self.base_url))
-    .json(&amp;request)
-    .send()
-    .await;</code></pre></details>
-            <details><summary>2. Axum Inbound Adapter</summary><p>Axum mencocokkan URL, mem-parse JSON payload, memanggil Service, dan mengembalikan response.</p><pre><code>async fn dispatch_operator(State(service): State&lt;Arc&lt;S&gt;&gt;,
-    Json(payload): Json&lt;DispatchOperatorRequest&gt;) -&gt; impl IntoResponse {
-    let result = service.dispatch_operator(payload.operator_id, payload.order_item_id).await;
-    match result {
-        Ok(_) =&gt; (StatusCode::OK, "Operator dispatched").into_response(),
-        Err(status) =&gt; (status, "Error dispatching operator").into_response(),
-    }
-}</code></pre></details>
-            <details><summary>3. Inbound Port (Service Trait)</summary><p>Trait menetapkan kontrak antara web adapter dan service.</p><pre><code>pub trait ServiceTrait: Send + Sync {
-    fn view_operator_list(&amp;self) -&gt; impl Future&lt;Output = Result&lt;Vec&lt;OperatorDetailsResponse&gt;, StatusCode&gt;&gt; + Send;
-    fn view_order_item(&amp;self) -&gt; impl Future&lt;Output = Result&lt;Vec&lt;OrderItemResponse&gt;, StatusCode&gt;&gt; + Send;
-}</code></pre></details>
-            <details><summary>4. Core Domain Service</summary><p>Service memvalidasi ketersediaan courier, role, dan status order sebelum membuat ActiveModel update.</p><pre><code>if operator.availability != 1 || operator.role_id != 2 {
-    return Err(StatusCode::BAD_REQUEST);
-}
-if order_item.status != 3 {
-    return Err(StatusCode::BAD_REQUEST);
-}</code></pre></details>
-            <details><summary>5. Outbound Port (Repository Trait)</summary><p>Kontrak database yang tidak mengikat Core pada satu jenis database.</p><pre><code>pub trait RepositoryTrait: Send + Sync {
-    fn find_operator(&amp;self, operator_id: i32) -&gt; impl Future&lt;Output = Result&lt;OperatorModel, DbErr&gt;&gt; + Send;
-    fn dispatch_operator(&amp;self, operator: OperatorActiveModel, order_item: OrderItemActiveModel) -&gt; impl Future&lt;Output = Result&lt;(), DbErr&gt;&gt; + Send;
-}</code></pre></details>
-            <details><summary>6. Sea-ORM Outbound Adapter</summary><p>Repository menjalankan query dan transaksi atomik.</p><pre><code>let tx = self.database_connection.begin().await?;
-operator.update(&amp;tx).await?;
-order_item.update(&amp;tx).await?;
-tx.commit().await?;</code></pre></details>
-            <details><summary>7. MySQL Database</summary><p>Database menyimpan operator, order item, obat, warehouse, region, dan activity log.</p><pre><code>CREATE TABLE IF NOT EXISTS `operator` (
-  `id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
-  `codename` VARCHAR(255) NOT NULL,
-  `role_id` INT NOT NULL,
-  `x_position` FLOAT NOT NULL,
-  `y_position` FLOAT NOT NULL,
-  `availability` BOOLEAN NOT NULL,
-  FOREIGN KEY (`role_id`) REFERENCES `role`(`id`)
-);</code></pre></details>
-            <div class="card"><h3>Router Nesting &amp; State Sharing</h3><pre><code>let app = Router::new()
-    .nest("/dispatcher", dispatcher_router)
-    .nest("/courier", courier_router)
-    .nest("/warehouse", warehouse_router)
-    .nest("/manufacturer", manufacturer_router)
-    .with_state(service)
-    .layer(cors);</code></pre></div>
-        </section>
-
-        <section id="sim-tab">
-            <header><h2>Simulasi Eksekusi Dispatch Endpoint</h2><p>Simulasi trace request dispatch dari Tauri ke server dan validasi aturan bisnis.</p></header>
-            <div class="sim-controls">
-                <div class="form-group"><label for="simCourier">Pilih Kurir</label><select id="simCourier"><option value="1">#1 - Amiya [AVAILABLE]</option><option value="2">#2 - Kal'tsit [AVAILABLE]</option><option value="3">#3 - Blaze [AVAILABLE]</option><option value="4">#4 - Chen [BUSY / ON DUTY]</option></select></div>
-                <div class="form-group"><label for="simOrder">Pilih Order Item</label><select id="simOrder"><option value="101">#101 - Originium Stabiliser [READY_FOR_PICKUP]</option><option value="102">#102 - Cellular Regenerator [READY_FOR_PICKUP]</option><option value="103">#103 - Neural Dampener [IN_PRODUCTION]</option></select></div>
-                <button type="button" onclick="runSimulation()">Kirim Request Dispatch</button>
-            </div>
-            <div class="sim-console" id="simConsole" role="log" aria-live="polite"><div><span class="log-ts">[00:00:00]</span> <span class="log-layer">READY</span> Klik tombol untuk memulai trace...</div></div>
-        </section>
-    </main>
-
-    <script>
-        const sampleCouriers = [
-            { codename: "Amiya", x: 310, y: 280, specialty: "Columbia", available: true },
-            { codename: "Blaze", x: 580, y: 490, specialty: "Victoria", available: true },
-            { codename: "Bagpipe", x: 450, y: 380, specialty: "Victoria", available: true },
-            { codename: "Ch'en", x: 760, y: 310, specialty: "Yan", available: true },
-            { codename: "Texas", x: 260, y: 320, specialty: "Siracusa", available: true },
-            { codename: "Exusiai", x: 290, y: 310, specialty: "Laterano", available: false },
-        ];
-
-        function updateRecommendation() {
-            const [targetRegion, txStr, tyStr] = document.getElementById('recOrder').value.split('|');
-            const tx = Number(txStr), ty = Number(tyStr);
-            const wDistPct = Number(document.getElementById('wDistSlider').value);
-            const wSpecPct = 100 - wDistPct;
-            document.getElementById('wDistLabel').textContent = wDistPct + '%';
-            document.getElementById('wSpecLabel').textContent = wSpecPct + '%';
-            const wDist = wDistPct / 100, wSpec = wSpecPct / 100;
-            const maxDist = Math.hypot(1000, 800);
-            const scored = sampleCouriers.map(c => {
-                const dist = Math.hypot(c.x - tx, c.y - ty);
-                const distScore = Math.max(0, 1 - dist / maxDist);
-                const match = c.specialty === targetRegion;
-                const total = c.available ? (wDist * distScore + wSpec * Number(match)) * 100 : -1;
-                return { ...c, dist, match, total };
-            }).sort((a, b) => {
-                if (a.available !== b.available) return a.available ? -1 : 1;
-                return b.total - a.total;
-            });
-            const tbody = document.getElementById('recTableBody');
-            let rank = 0;
-            tbody.innerHTML = scored.map(c => {
-                if (c.available) rank++;
-                const rankHtml = c.available ? `#${rank}` : '-';
-                const status = c.available ? 'AVAILABLE' : 'ON DUTY';
-                const spec = c.match ? `${c.specialty} (MATCH)` : c.specialty;
-                const score = c.available ? c.total.toFixed(1) : 'N/A';
-                return `<tr><td>${rankHtml}</td><td><strong>${c.codename}</strong> (${c.x}, ${c.y})</td><td>${status}</td><td>${c.dist.toFixed(1)} u</td><td>${spec}</td><td>${score}</td></tr>`;
-            }).join('');
-        }
-        updateRecommendation();
-
-        function runSimulation() {
-            const consoleBox = document.getElementById('simConsole');
-            const courierVal = document.getElementById('simCourier').value;
-            const orderVal = document.getElementById('simOrder').value;
-            consoleBox.replaceChildren();
-            function log(layer, msg, status = '') {
-                const line = document.createElement('div');
-                const ts = document.createElement('span');
-                ts.className = 'log-ts';
-                ts.textContent = `[${new Date().toTimeString().split(' ')[0]}] `;
-                const label = document.createElement('span');
-                label.className = 'log-layer';
-                label.textContent = `${layer} `;
-                const message = document.createElement('span');
-                message.className = status;
-                message.textContent = msg;
-                line.append(ts, label, message);
-                consoleBox.appendChild(line);
-                consoleBox.scrollTop = consoleBox.scrollHeight;
-            }
-            log('TAURI IPC', `Mengirim invoke("dispatch_operator", { operator_id: ${courierVal}, order_item_id: ${orderVal} })`);
-            setTimeout(() => log('REQWEST', 'POST http://127.0.0.1:3000/dispatcher/dispatch-operator ...'), 300);
-            setTimeout(() => log('AXUM INBOUND', 'Menerima request. Extractor Json(payload) sukses di-deserialize.'), 600);
-            setTimeout(() => log('SERVICE', `Memeriksa aturan bisnis: Mencari Operator #${courierVal} & Order #${orderVal}...`), 900);
-            setTimeout(() => {
-                if (courierVal === '4') {
-                    log('VALIDATION', 'Gagal! Operator Chen sedang ON DUTY (availability != 1). Menolak request!', 'log-warn');
-                    log('AXUM RESPONSE', 'Mengembalikan HTTP 400 Bad Request ke Tauri frontend.', 'log-warn');
-                    return;
-                }
-                if (orderVal === '103') {
-                    log('VALIDATION', 'Gagal! Order item #103 statusnya IN_PRODUCTION, belum siap di-pickup!', 'log-warn');
-                    log('AXUM RESPONSE', 'Mengembalikan HTTP 400 Bad Request ke Tauri frontend.', 'log-warn');
-                    return;
-                }
-                log('VALIDATION', 'Lolos! Operator role Courier & status ketersediaan OK. Order item siap di-pickup.', 'log-ok');
-                setTimeout(() => log('REPOSITORY', 'Membuka Sea-ORM Transaction: begin(). Mengupdate OrderItem status -> 4 (ASSIGNED).'), 300);
-                setTimeout(() => {
-                    log('MYSQL DB', 'COMMIT transaksi berhasil! Perubahan data tersimpan permanen.', 'log-ok');
-                    log('AXUM RESPONSE', 'Mengembalikan HTTP 200 OK ("Operator dispatched successfully").', 'log-ok');
-                    log('TAURI POLLER', "Poller menerima sinyal refresh -> memancarkan event 'order-item-list' ke React!", 'log-ok');
-                }, 600);
-            }, 1200);
-        }
-    </script>
-</body>
-</html>
+        <!-- TAB 0: QUIZ BUGS, OPTIMIZATION & FEATURES -->
+        <section id="quiz-tab">
